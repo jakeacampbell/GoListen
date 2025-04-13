@@ -15,8 +15,10 @@ import (
 )
 
 type Audio interface {
-	GetName() string
 	GetPath() string
+	GetName() string
+	GetArtist() string
+	GetAlbum() string
 }
 
 type Song struct {
@@ -24,12 +26,12 @@ type Song struct {
 	SongName   string
 	ArtistName string
 	AlbumName  string
-	SongLength int
-	streamer   beep.StreamSeekCloser
 }
 
-func (s *Song) GetName() string { return s.SongName }
-func (s *Song) GetPath() string { return s.FileName }
+func (s *Song) GetName() string   { return s.SongName }
+func (s *Song) GetPath() string   { return s.FileName }
+func (s *Song) GetArtist() string { return s.ArtistName }
+func (s *Song) GetAlbum() string  { return s.AlbumName }
 
 var (
 	ctrl *beep.Ctrl
@@ -40,8 +42,8 @@ func main() {
 	var playlist []Audio
 
 	playlist = append(playlist,
-		&Song{"C:\\Users\\campb\\Music\\Let.mp3", "Mine", "Bazzi", "Eyes", 153, nil},
-		&Song{"", "Paradise", "Bazzi", "Eyes", 153, nil},
+		&Song{"C:\\Users\\campb\\Music\\Let.mp3", "Mine", "Bazzi", "Eyes"},
+		&Song{"", "Paradise", "Bazzi", "Eyes"},
 	)
 
 	myApp := app.New()
@@ -130,10 +132,9 @@ func PlayAudio(AudioInfo Audio) {
 		Paused:   false,
 	}
 
-	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-
 	done = make(chan bool)
 
+	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
 	speaker.Play(beep.Seq(ctrl, beep.Callback(func() {
 		CloseAudio()
 	})))
@@ -153,9 +154,20 @@ func PlayAudio(AudioInfo Audio) {
 func MakePlaylistView(source []Audio) *widget.List {
 	return widget.NewList(
 		func() int { return len(source) },
-		func() fyne.CanvasObject { return widget.NewLabel("Playlist") },
+		func() fyne.CanvasObject {
+			return container.NewHBox(
+				widget.NewLabel("Song"),
+				widget.NewLabel("Artist"),
+				widget.NewLabel("Album"),
+			)
+		},
 		func(i int, object fyne.CanvasObject) {
-			object.(*widget.Label).SetText(source[i].GetName())
+			row := object.(*fyne.Container)
+			audio := source[i]
+
+			row.Objects[0].(*widget.Label).SetText(audio.GetName())
+			row.Objects[1].(*widget.Label).SetText(audio.GetArtist())
+			row.Objects[2].(*widget.Label).SetText(audio.GetAlbum())
 		},
 	)
 }
