@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
@@ -34,8 +33,9 @@ func (s *Song) GetArtist() string { return s.ArtistName }
 func (s *Song) GetAlbum() string  { return s.AlbumName }
 
 var (
-	ctrl *beep.Ctrl
-	done chan bool
+	ctrl           *beep.Ctrl
+	done           chan bool
+	playbackSlider *widget.Slider
 )
 
 func main() {
@@ -69,8 +69,16 @@ func main() {
 		speaker.Unlock()
 	})
 
+	playbackSlider = widget.NewSlider(0, 60)
+	playbackSlider.Step = 1.0
+	playbackSlider.OnChanged = func(t float64) {
+		speaker.Lock()
+		// Seek new time
+		speaker.Unlock()
+	}
+
 	windowContent := container.NewBorder(
-		nil,
+		playbackSlider,
 		playbackButton,
 		nil,
 		nil,
@@ -139,13 +147,19 @@ func PlayAudio(AudioInfo Audio) {
 		CloseAudio()
 	})))
 
+	playbackSlider.Max = float64(format.SampleRate.D(streamer.Len()).Round(time.Second))
+
 	for {
 		select {
 		case <-done:
 			return
 		case <-time.After(time.Second):
 			speaker.Lock()
-			fmt.Println(format.SampleRate.D(streamer.Position()).Round(time.Second))
+			fyne.Do(func() {
+				playbackSlider.Value = float64(format.SampleRate.D(streamer.Position()).Round(time.Second))
+				playbackSlider.Refresh()
+			})
+			//fmt.Println(format.SampleRate.D(streamer.Position()).Round(time.Second))
 			speaker.Unlock()
 		}
 	}
