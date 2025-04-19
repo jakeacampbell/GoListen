@@ -7,6 +7,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/faiface/beep"
+	"github.com/faiface/beep/effects"
 	"github.com/faiface/beep/mp3"
 	"github.com/faiface/beep/speaker"
 	"log"
@@ -36,6 +37,7 @@ func (s *Song) GetAlbum() string  { return s.AlbumName }
 type PlaybackController struct {
 	ctrl       *beep.Ctrl
 	sampleRate beep.SampleRate
+	volume     *effects.Volume
 }
 
 var (
@@ -118,13 +120,47 @@ func MakePlaybackContent() fyne.CanvasObject {
 		speaker.Unlock()
 	})
 
+	volumeSlider := widget.NewSlider(-10, 0)
+	volumeSlider.Value = 0 // Default volume
+	volumeSlider.Step = 0.01
+	volumeSlider.OnChanged = func(v float64) {
+		SetVolume(v)
+	}
+
+	volumeControl := container.NewBorder(
+		nil, nil,
+		widget.NewLabel("Volume:"),
+		nil,
+		volumeSlider,
+	)
+
 	return container.NewBorder(
 		nil,
-		playbackProgress,
+		container.NewVBox(
+			playbackProgress,
+			volumeControl,
+		),
 		nil,
 		nil,
 		playbackButton,
 	)
+}
+
+func SetVolume(volume float64) {
+	if playback.volume == nil {
+		return
+	}
+
+	speaker.Lock()
+	defer speaker.Unlock()
+
+	if volume == -10 {
+		playback.volume.Silent = true
+	} else {
+		playback.volume.Silent = false
+	}
+
+	playback.volume.Volume = volume
 }
 
 func CloseAudio() {
@@ -144,6 +180,7 @@ func CloseAudio() {
 
 		done = nil
 		playback.ctrl = nil
+		playback.volume = nil
 	}
 }
 
@@ -180,10 +217,17 @@ func PlayAudio(AudioInfo Audio) {
 		Paused:   false,
 	}
 
+	playback.volume = &effects.Volume{
+		Streamer: playback.ctrl,
+		Base:     2,
+		Volume:   -2,
+		Silent:   false,
+	}
+
 	done = make(chan bool)
 
 	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-	speaker.Play(beep.Seq(playback.ctrl, beep.Callback(func() {
+	speaker.Play(beep.Seq(playback.volume, beep.Callback(func() {
 		CloseAudio()
 	})))
 
