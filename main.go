@@ -66,16 +66,21 @@ func main() {
 		go PlayAudio(playlist[id])
 	}
 
-	playbackButton := widget.NewButton("Pause/Resume", func() {
-		if playback.ctrl == nil {
-			log.Println("No audio is currently playing.")
-			return
-		}
+	windowContent := container.NewBorder(
+		nil,
+		MakePlaybackContent(),
+		nil,
+		nil,
+		container.NewVScroll(myPlaylist),
+	)
 
-		speaker.Lock()
-		playback.ctrl.Paused = !playback.ctrl.Paused
-		speaker.Unlock()
-	})
+	myWindow.SetContent(windowContent)
+	myWindow.ShowAndRun()
+}
+
+func MakePlaybackContent() fyne.CanvasObject {
+	currTimeText = widget.NewLabel("0.00")
+	currSongLengthText = widget.NewLabel("0.00")
 
 	playbackSlider = widget.NewSlider(0, 60)
 	playbackSlider.Step = 1.0
@@ -94,10 +99,7 @@ func main() {
 
 	}
 
-	currTimeText = widget.NewLabel("0.00")
-	currSongLengthText = widget.NewLabel("0.00")
-
-	topContent := container.NewBorder(
+	playbackProgress := container.NewBorder(
 		nil,
 		nil,
 		currTimeText,
@@ -105,16 +107,24 @@ func main() {
 		playbackSlider,
 	)
 
-	windowContent := container.NewBorder(
-		topContent,
-		playbackButton,
-		nil,
-		nil,
-		container.NewVScroll(myPlaylist),
-	)
+	playbackButton := widget.NewButton("Pause/Resume", func() {
+		if playback.ctrl == nil {
+			log.Println("No audio is currently playing.")
+			return
+		}
 
-	myWindow.SetContent(windowContent)
-	myWindow.ShowAndRun()
+		speaker.Lock()
+		playback.ctrl.Paused = !playback.ctrl.Paused
+		speaker.Unlock()
+	})
+
+	return container.NewBorder(
+		nil,
+		playbackProgress,
+		nil,
+		nil,
+		playbackButton,
+	)
 }
 
 func CloseAudio() {
@@ -192,6 +202,7 @@ func PlayAudio(AudioInfo Audio) {
 			return
 		case <-time.After(time.Second):
 			speaker.Lock()
+
 			fyne.Do(func() {
 				totalSeconds := int(format.SampleRate.D(streamer.Position()).Round(time.Second).Seconds())
 
