@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
@@ -32,10 +33,17 @@ func (s *Song) GetPath() string   { return s.FileName }
 func (s *Song) GetArtist() string { return s.ArtistName }
 func (s *Song) GetAlbum() string  { return s.AlbumName }
 
+type PlaybackController struct {
+	ctrl       *beep.Ctrl
+	sampleRate beep.SampleRate
+}
+
 var (
-	ctrl           *beep.Ctrl
-	done           chan bool
-	playbackSlider *widget.Slider
+	playback           PlaybackController
+	done               chan bool
+	playbackSlider     *widget.Slider
+	currTimeText       *widget.Label
+	currSongLengthText *widget.Label
 )
 
 func main() {
@@ -59,13 +67,13 @@ func main() {
 	}
 
 	playbackButton := widget.NewButton("Pause/Resume", func() {
-		if ctrl == nil {
+		if playback.ctrl == nil {
 			log.Println("No audio is currently playing.")
 			return
 		}
 
 		speaker.Lock()
-		ctrl.Paused = !ctrl.Paused
+		playback.ctrl.Paused = !playback.ctrl.Paused
 		speaker.Unlock()
 	})
 
@@ -73,12 +81,32 @@ func main() {
 	playbackSlider.Step = 1.0
 	playbackSlider.OnChanged = func(t float64) {
 		speaker.Lock()
-		// Seek new time
-		speaker.Unlock()
+		defer speaker.Unlock()
+
+		// Debugging: Check if the streamer supports seeking
+		if streamSeekCloser, ok := playback.ctrl.Streamer.(beep.StreamSeekCloser); ok {
+			if err := streamSeekCloser.Seek(int(float64(playback.sampleRate) * t)); err != nil {
+				log.Println("Failed to seek:", err)
+			}
+		} else {
+			log.Println("Streamer does not support seeking.")
+		}
+
 	}
 
-	windowContent := container.NewBorder(
+	currTimeText = widget.NewLabel("0.00")
+	currSongLengthText = widget.NewLabel("0.00")
+
+	topContent := container.NewBorder(
+		nil,
+		nil,
+		currTimeText,
+		currSongLengthText,
 		playbackSlider,
+	)
+
+	windowContent := container.NewBorder(
+		topContent,
 		playbackButton,
 		nil,
 		nil,
@@ -92,8 +120,8 @@ func main() {
 func CloseAudio() {
 	if done != nil {
 		speaker.Lock()
-		if ctrl != nil {
-			ctrl.Paused = true
+		if playback.ctrl != nil {
+			playback.ctrl.Paused = true
 		}
 		speaker.Unlock()
 
@@ -105,7 +133,7 @@ func CloseAudio() {
 		}
 
 		done = nil
-		ctrl = nil
+		playback.ctrl = nil
 	}
 }
 
@@ -128,14 +156,16 @@ func PlayAudio(AudioInfo Audio) {
 	}
 	defer streamer.Close()
 
+	playback.sampleRate = format.SampleRate
+
 	// Clear up existing playback
-	if ctrl != nil {
+	if playback.ctrl != nil {
 		speaker.Lock()
-		ctrl.Paused = true
+		playback.ctrl.Paused = true
 		speaker.Unlock()
 	}
 
-	ctrl = &beep.Ctrl{
+	playback.ctrl = &beep.Ctrl{
 		Streamer: streamer,
 		Paused:   false,
 	}
@@ -143,11 +173,18 @@ func PlayAudio(AudioInfo Audio) {
 	done = make(chan bool)
 
 	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-	speaker.Play(beep.Seq(ctrl, beep.Callback(func() {
+	speaker.Play(beep.Seq(playback.ctrl, beep.Callback(func() {
 		CloseAudio()
 	})))
 
-	playbackSlider.Max = float64(format.SampleRate.D(streamer.Len()).Round(time.Second))
+	fyne.Do(func() {
+		totalSeconds := int(format.SampleRate.D(streamer.Len()).Round(time.Second).Seconds())
+		minutes := totalSeconds / 60
+		seconds := totalSeconds % 60
+
+		currSongLengthText.SetText(fmt.Sprintf("%d:%02d", minutes, seconds))
+		playbackSlider.Max = float64(streamer.Len()) / float64(playback.sampleRate)
+	})
 
 	for {
 		select {
@@ -156,7 +193,13 @@ func PlayAudio(AudioInfo Audio) {
 		case <-time.After(time.Second):
 			speaker.Lock()
 			fyne.Do(func() {
-				playbackSlider.Value = float64(format.SampleRate.D(streamer.Position()).Round(time.Second))
+				totalSeconds := int(format.SampleRate.D(streamer.Position()).Round(time.Second).Seconds())
+
+				minutes := totalSeconds / 60
+				seconds := totalSeconds % 60
+
+				currTimeText.SetText(fmt.Sprintf("%d:%02d", minutes, seconds))
+				playbackSlider.Value = format.SampleRate.D(streamer.Position()).Round(time.Second).Seconds()
 				playbackSlider.Refresh()
 			})
 			//fmt.Println(format.SampleRate.D(streamer.Position()).Round(time.Second))
