@@ -73,7 +73,15 @@ func main() {
 		MakePlaybackContent(),
 		nil,
 		nil,
-		container.NewVScroll(myPlaylist),
+		container.NewHSplit(
+			container.NewBorder(
+				nil,
+				nil,
+				nil,
+				nil,
+				widget.NewLabel("Test")),
+			container.NewVScroll(myPlaylist),
+		),
 	)
 
 	myWindow.SetContent(windowContent)
