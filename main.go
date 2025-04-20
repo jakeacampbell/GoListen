@@ -12,6 +12,8 @@ import (
 	"github.com/faiface/beep/speaker"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -46,27 +48,56 @@ var (
 	playbackSlider     *widget.Slider
 	currTimeText       *widget.Label
 	currSongLengthText *widget.Label
+	playlist           []Audio
 )
 
-func main() {
-	var playlist []Audio
+func ScanDirectory(dir string) error {
+	files, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
 
-	playlist = append(playlist,
-		&Song{"C:\\Users\\campb\\Music\\Let.mp3", "Mine", "Bazzi", "Eyes"},
-		&Song{"", "Paradise", "Bazzi", "Eyes"},
-	)
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		extension := filepath.Ext(file.Name())
+
+		switch strings.ToLower(extension) {
+		case ".mp3":
+			full := filepath.Join(dir, file.Name())
+			playlist = append(playlist, &Song{full, file.Name(), "", ""})
+		default:
+			continue
+		}
+	}
+
+	return nil
+}
+
+func main() {
+
+	//playlist = append(playlist,
+	//	&Song{"C:\\Users\\campb\\Music\\Paradise.mp3", "Paradise", "Bazzi", "Eyes"},
+	//	&Song{"C:\\Users\\campb\\Music\\Mine.mp3", "Mine", "Bazzi", "Eyes"},
+	//	&Song{"C:\\Users\\campb\\Music\\get_up.mp3", "Get up for a ride", "", ""},
+	//	&Song{"C:\\Users\\campb\\Music\\Feel-It.mp3", "Feel It", "d4vd", "Invincible OST"},
+	//	&Song{"C:\\Users\\campb\\Music\\Headlock.mp3", "Headlock", "Imogen Heap", "Invincible OST"},
+	//	&Song{"C:\\Users\\campb\\Music\\Might-not.mp3", "Might Not Make It Home", "LPX", "Invincible OST"},
+	//	&Song{"C:\\Users\\campb\\Music\\Endorsi.mp3", "Endorsi", "Tower Of God", "Tower Of God OST"},
+	//)
+
+	if err := ScanDirectory("C:\\Users\\campb\\Music"); err != nil {
+		log.Fatal(err)
+	}
 
 	myApp := app.New()
 	myWindow := myApp.NewWindow("GoListen")
 
 	myWindow.Resize(fyne.NewSize(1920, 1080))
 
-	myPlaylist := MakePlaylistView(playlist)
-	myPlaylist.OnSelected = func(id widget.ListItemID) {
-		CloseAudio()
-
-		go PlayAudio(playlist[id])
-	}
+	playlistView := MakePlaylistView(playlist)
 
 	windowContent := container.NewBorder(
 		nil,
@@ -80,7 +111,7 @@ func main() {
 				nil,
 				nil,
 				widget.NewLabel("Test")),
-			container.NewVScroll(myPlaylist),
+			container.NewVScroll(playlistView),
 		),
 	)
 
@@ -274,23 +305,34 @@ func PlayAudio(AudioInfo Audio) {
 	}
 }
 
-func MakePlaylistView(source []Audio) *widget.List {
-	return widget.NewList(
+func MakePlaylistView(source []Audio) *fyne.Container {
+
+	myPlaylist := widget.NewList(
 		func() int { return len(source) },
 		func() fyne.CanvasObject {
-			return container.NewHBox(
-				widget.NewLabel("Song"),
-				widget.NewLabel("Artist"),
-				widget.NewLabel("Album"),
-			)
+			return container.NewGridWithColumns(4, widget.NewLabel("#"), widget.NewLabel("Song"), widget.NewLabel("Artist"), widget.NewLabel("Album"))
 		},
 		func(i int, object fyne.CanvasObject) {
 			row := object.(*fyne.Container)
 			audio := source[i]
 
-			row.Objects[0].(*widget.Label).SetText(audio.GetName())
-			row.Objects[1].(*widget.Label).SetText(audio.GetArtist())
-			row.Objects[2].(*widget.Label).SetText(audio.GetAlbum())
+			row.Objects[0].(*widget.Label).SetText(fmt.Sprintf("%d", i+1))
+			row.Objects[1].(*widget.Label).SetText(audio.GetName())
+			row.Objects[2].(*widget.Label).SetText(audio.GetArtist())
+			row.Objects[3].(*widget.Label).SetText(audio.GetAlbum())
 		},
 	)
+
+	myPlaylist.OnSelected = func(id widget.ListItemID) {
+		CloseAudio()
+
+		go PlayAudio(playlist[id])
+	}
+
+	return container.NewBorder(
+		container.NewGridWithColumns(4, widget.NewLabel("#"), widget.NewLabel("Song"), widget.NewLabel("Artist"), widget.NewLabel("Album")),
+		nil, nil, nil,
+		myPlaylist,
+	)
+
 }
