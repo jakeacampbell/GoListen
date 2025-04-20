@@ -133,6 +133,8 @@ func MakePlaybackContent() fyne.CanvasObject {
 	)
 }
 
+// MakePlaylistView creates a fyne.Container that displays a list of Audio items with details like Song, Artist, and Album.
+// It allows audio selection and playback from the provided source.
 func MakePlaylistView(source []Audio) *fyne.Container {
 
 	myPlaylist := widget.NewList(
