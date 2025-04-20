@@ -143,14 +143,17 @@ func MakePlaybackContent() fyne.CanvasObject {
 	)
 
 	return container.NewBorder(
-		nil,
-		container.NewVBox(
-			playbackProgress,
-			volumeControl,
-		),
-		nil,
-		nil,
 		playbackButton,
+		nil,
+		nil,
+		nil,
+		container.NewBorder(
+			nil,
+			nil,
+			nil,
+			volumeControl,
+			playbackProgress,
+		),
 	)
 }
 
