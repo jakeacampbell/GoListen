@@ -18,6 +18,11 @@ var (
 	playlist []Audio
 )
 
+// Audio represents an interface for audio-related metadata and file access.
+// GetPath retrieves the file path of the audio.
+// GetName retrieves the name/title of the audio.
+// GetArtist retrieves the artist of the audio.
+// GetAlbum retrieves the album associated with the audio.
 type Audio interface {
 	GetPath() string
 	GetName() string
