@@ -5,8 +5,8 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/widget"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +16,7 @@ var (
 	playbackSlider     *widget.Slider
 	currTimeText       *widget.Label
 	currSongLengthText *widget.Label
+	playlistView       *widget.List
 )
 
 func ScanDirectory(dir string) error {
@@ -44,27 +45,35 @@ func ScanDirectory(dir string) error {
 }
 
 func main() {
-
-	//playlist = append(playlist,
-	//	&Song{"C:\\Users\\campb\\Music\\Paradise.mp3", "Paradise", "Bazzi", "Eyes"},
-	//	&Song{"C:\\Users\\campb\\Music\\Mine.mp3", "Mine", "Bazzi", "Eyes"},
-	//	&Song{"C:\\Users\\campb\\Music\\get_up.mp3", "Get up for a ride", "", ""},
-	//	&Song{"C:\\Users\\campb\\Music\\Feel-It.mp3", "Feel It", "d4vd", "Invincible OST"},
-	//	&Song{"C:\\Users\\campb\\Music\\Headlock.mp3", "Headlock", "Imogen Heap", "Invincible OST"},
-	//	&Song{"C:\\Users\\campb\\Music\\Might-not.mp3", "Might Not Make It Home", "LPX", "Invincible OST"},
-	//	&Song{"C:\\Users\\campb\\Music\\Endorsi.mp3", "Endorsi", "Tower Of God", "Tower Of God OST"},
-	//)
-
-	if err := ScanDirectory("C:\\Users\\campb\\Music"); err != nil {
-		log.Fatal(err)
-	}
-
 	myApp := app.New()
 	myWindow := myApp.NewWindow("GoListen")
 
 	myWindow.Resize(fyne.NewSize(1920, 1080))
 
-	playlistView := MakePlaylistView(playlist)
+	playlistContent := MakePlaylistView()
+
+	loadButton := widget.NewButton("Load", func() {
+		dialog.ShowFolderOpen(func(uri fyne.ListableURI, err error) {
+			if uri == nil {
+				return
+			}
+
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			CloseAudio()
+
+			scanErr := ScanDirectory(uri.Path())
+
+			if scanErr != nil {
+				fmt.Println(scanErr)
+			}
+
+			playlistView.Refresh()
+		}, myWindow)
+	})
 
 	windowContent := container.NewBorder(
 		nil,
@@ -77,8 +86,9 @@ func main() {
 				nil,
 				nil,
 				nil,
-				widget.NewLabel("Test")),
-			container.NewVScroll(playlistView),
+				loadButton,
+			),
+			container.NewVScroll(playlistContent),
 		),
 	)
 
@@ -135,16 +145,16 @@ func MakePlaybackContent() fyne.CanvasObject {
 
 // MakePlaylistView creates a fyne.Container that displays a list of Audio items with details like Song, Artist, and Album.
 // It allows audio selection and playback from the provided source.
-func MakePlaylistView(source []Audio) *fyne.Container {
+func MakePlaylistView() *fyne.Container {
 
-	myPlaylist := widget.NewList(
-		func() int { return len(source) },
+	playlistView = widget.NewList(
+		func() int { return len(playlist) },
 		func() fyne.CanvasObject {
 			return container.NewGridWithColumns(4, widget.NewLabel("#"), widget.NewLabel("Song"), widget.NewLabel("Artist"), widget.NewLabel("Album"))
 		},
 		func(i int, object fyne.CanvasObject) {
 			row := object.(*fyne.Container)
-			audio := source[i]
+			audio := playlist[i]
 
 			row.Objects[0].(*widget.Label).SetText(fmt.Sprintf("%d", i+1))
 			row.Objects[1].(*widget.Label).SetText(audio.GetName())
@@ -153,7 +163,7 @@ func MakePlaylistView(source []Audio) *fyne.Container {
 		},
 	)
 
-	myPlaylist.OnSelected = func(id widget.ListItemID) {
+	playlistView.OnSelected = func(id widget.ListItemID) {
 		CloseAudio()
 
 		go PlayAudio(playlist[id])
@@ -162,7 +172,7 @@ func MakePlaylistView(source []Audio) *fyne.Container {
 	return container.NewBorder(
 		container.NewGridWithColumns(4, widget.NewLabel("#"), widget.NewLabel("Song"), widget.NewLabel("Artist"), widget.NewLabel("Album")),
 		nil, nil, nil,
-		myPlaylist,
+		playlistView,
 	)
 
 }
