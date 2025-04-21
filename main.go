@@ -19,7 +19,7 @@ var (
 	playlistView       *widget.List
 )
 
-func ScanDirectory(dir string) error {
+func ScanDirectory(dir string, output *Playlist) error {
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		return err
@@ -35,7 +35,7 @@ func ScanDirectory(dir string) error {
 		switch strings.ToLower(extension) {
 		case ".mp3":
 			full := filepath.Join(dir, file.Name())
-			playlist = append(playlist, &Song{full, file.Name(), "", ""})
+			*output = append(*output, &Song{full, file.Name(), "", ""})
 		default:
 			continue
 		}
@@ -50,7 +50,11 @@ func main() {
 
 	myWindow.Resize(fyne.NewSize(1920, 1080))
 
-	playlistContent := MakePlaylistView()
+	localPlaylist := Playlist{}
+
+	playlistContent := MakePlaylistView(&localPlaylist)
+
+	playlists = append(playlists, localPlaylist)
 
 	loadButton := widget.NewButton("Load", func() {
 		dialog.ShowFolderOpen(func(uri fyne.ListableURI, err error) {
@@ -65,7 +69,7 @@ func main() {
 
 			CloseAudio()
 
-			scanErr := ScanDirectory(uri.Path())
+			scanErr := ScanDirectory(uri.Path(), &localPlaylist)
 
 			if scanErr != nil {
 				fmt.Println(scanErr)
@@ -145,16 +149,16 @@ func MakePlaybackContent() fyne.CanvasObject {
 
 // MakePlaylistView creates a fyne.Container that displays a list of Audio items with details like Song, Artist, and Album.
 // It allows audio selection and playback from the provided source.
-func MakePlaylistView() *fyne.Container {
+func MakePlaylistView(source *Playlist) *fyne.Container {
 
 	playlistView = widget.NewList(
-		func() int { return len(playlist) },
+		func() int { return len(*source) },
 		func() fyne.CanvasObject {
 			return container.NewGridWithColumns(4, widget.NewLabel("#"), widget.NewLabel("Song"), widget.NewLabel("Artist"), widget.NewLabel("Album"))
 		},
 		func(i int, object fyne.CanvasObject) {
 			row := object.(*fyne.Container)
-			audio := playlist[i]
+			audio := (*source)[i]
 
 			row.Objects[0].(*widget.Label).SetText(fmt.Sprintf("%d", i+1))
 			row.Objects[1].(*widget.Label).SetText(audio.GetName())
@@ -166,7 +170,7 @@ func MakePlaylistView() *fyne.Container {
 	playlistView.OnSelected = func(id widget.ListItemID) {
 		CloseAudio()
 
-		go PlayAudio(playlist[id])
+		go PlayAudio((*source)[id])
 	}
 
 	return container.NewBorder(

@@ -13,10 +13,12 @@ import (
 )
 
 var (
-	playback PlaybackController
-	done     chan bool
-	playlist []Audio
+	playback  PlaybackController
+	done      chan bool
+	playlists []Playlist
 )
+
+type Playlist []Audio
 
 // Audio represents an interface for audio-related metadata and file access.
 // GetPath retrieves the file path of the audio.
